@@ -448,7 +448,12 @@ SHADOW_TEST_CHOICES = [('off', ('Off (normal shadows)',)), ('noshadows', ('No sh
                        ('nocache', ('Redraw cached shadows every frame',)),
                        ('nopoint', ('No torch / fire (point light) shadows',)),
                        ('onecascade', ('Sun / moon: one shadow cascade',)),
-                       ('morebias', ('Stronger shadow bias (against shadow acne)',))]
+                       ('morebias', ('Stronger shadow bias (against shadow acne)',)),
+                       ('nocontact', ('No contact shadows',)),
+                       ('nodistancefield', ('No distance-field shadows / AO',)),
+                       ('nodepthbounds', ('No depth-bounds light culling',)),
+                       ('noao', ('No ambient occlusion (SSAO)',)),
+                       ('nossr', ('No screen-space reflections',))]
 ENGINE_FPS_CHOICES = [('60', ('60 (original, recommended)',)), ('120', ('120 (experimental)',)),
                       ('240', ('240 (experimental)',))]
 

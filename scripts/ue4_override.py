@@ -226,6 +226,13 @@ SHADOW_TESTS = {
     'onecascade': {'r.Shadow.CSM.MaxCascades': '1'},             # sun/moon: one cascade, no transitions
     'morebias': {'r.Shadow.CSMDepthBias': '30', 'r.Shadow.PointLightDepthBias': '0.06',
                  'r.Shadow.SpotLightDepthBias': '6'},            # shadow acne crawling while moving
+    # Dark wedges that stay with shadows off (AMD report): effects r.ShadowQuality leaves on.
+    'nocontact': {'r.ContactShadows': '0'},                      # screen-space contact shadows
+    'nodistancefield': {'r.DistanceFieldShadowing': '0', 'r.DistanceFieldAO': '0',
+                        'r.GenerateMeshDistanceFields': '0'},    # distance-field shadows and AO
+    'nodepthbounds': {'r.AllowDepthBoundsTest': '0'},            # lights clipped by depth bounds
+    'noao': {'r.AmbientOcclusionLevels': '0'},                   # screen-space ambient occlusion
+    'nossr': {'r.SSR.Quality': '0'},                             # screen-space reflections
 }
 
 # Sun/moon shadow cascades and distance per preset (each cascade redraws the scene once).
