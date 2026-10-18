@@ -216,6 +216,18 @@ QUALITY = {
 # 60 FPS up to about 2000 draws a frame; busy outdoor scenes reached 4000 (30 FPS) before.
 LOCAL_SHADOWS = {'ultra': (1024, 0.06), 'high': (1024, 0.08), 'console': (512, 0.1),
                  'medium': (512, 0.12), 'low': (256, 0.15)}
+# Shadow flicker test (medievil.ini shadow_test; launcher > Advanced): one change on top of the
+# chosen preset, its fixed shadow sizes kept, to find which shadows flicker on a given GPU.
+SHADOW_TESTS = {
+    'off': {},
+    'noshadows': {'r.ShadowQuality': '0'},                       # is it shadows at all?
+    'nocache': {'r.Shadow.CacheWholeSceneShadows': '0'},         # cached shadow maps redrawn each frame
+    'nopoint': {'r.AllowPointLightCubemapShadows': '0'},         # torches, fires, spirits
+    'onecascade': {'r.Shadow.CSM.MaxCascades': '1'},             # sun/moon: one cascade, no transitions
+    'morebias': {'r.Shadow.CSMDepthBias': '30', 'r.Shadow.PointLightDepthBias': '0.06',
+                 'r.Shadow.SpotLightDepthBias': '6'},            # shadow acne crawling while moving
+}
+
 # Sun/moon shadow cascades and distance per preset (each cascade redraws the scene once).
 SUN_SHADOWS = {'ultra': ('3', '1.5'), 'high': ('3', '1.2'), 'console': ('2', '0.8'),
                'medium': ('2', '0.75'), 'low': ('2', '0.6')}
@@ -319,7 +331,7 @@ ANTI_ALIASING = {'taa': None, 'fxaa': '2', 'off': '0'}
 
 
 def apply(game, resolution='native', quality='console', fps=60, debug_menu=False, infinite_ammo=False,
-          upscale='off', aa='taa'):
+          upscale='off', aa='taa', shadow_test='off'):
     """Writes or removes the override pak. Returns a short description of the active state."""
     pak = paks_dir(game) / PAK_NAME
     values = dict(QUALITY.get(quality, {}))
@@ -329,6 +341,9 @@ def apply(game, resolution='native', quality='console', fps=60, debug_menu=False
                        'r.Shadow.RadiusThreshold': str(threshold), 'r.Shadow.CacheWholeSceneShadows': '1'})
         cascades, distance = SUN_SHADOWS[quality]
         values.update({'r.Shadow.CSM.MaxCascades': cascades, 'r.Shadow.DistanceScale': distance})
+    if shadow_test not in SHADOW_TESTS:
+        shadow_test = 'off'
+    values.update(SHADOW_TESTS[shadow_test])
     percentage = SCREEN_PERCENTAGE.get(resolution)
     if percentage:
         values['r.ScreenPercentage'] = percentage
@@ -370,7 +385,8 @@ def apply(game, resolution='native', quality='console', fps=60, debug_menu=False
             f'{f", temporal upscaling {upscale} ({scale}%)" if scale else ""}'
             f'{f", anti-aliasing {aa}" if aa_quality is not None else ""}, {quality} quality, '
             f'{f"up to {fps}" if fps > 60 else 60} FPS{", debug menu (R3)" if debug_menu else ""}'
-            f'{", unlimited ammo" if infinite_ammo else ""}')
+            f'{", unlimited ammo" if infinite_ammo else ""}'
+            f'{f", shadow test {shadow_test}" if shadow_test != "off" else ""}')
 
 
 if __name__ == '__main__':

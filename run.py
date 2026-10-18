@@ -160,7 +160,8 @@ def main():
                                                            ini.get('cheat_menu') == '1',
                                                            ini.get('cheat_infinite_ammo') == '1',
                                                            ini.get('ue4_upscale', 'off'),
-                                                           ini.get('ue4_aa', 'taa')), flush=True)
+                                                           ini.get('ue4_aa', 'taa'),
+                                                           ini.get('shadow_test', 'off')), flush=True)
         except (OSError, ValueError) as error:
             print(f'Render resolution: unchanged ({error})', flush=True)
     original_game = game.resolve()

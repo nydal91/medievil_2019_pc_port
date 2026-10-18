@@ -141,7 +141,7 @@ INI_DEFAULTS = {'upscaler': 'off', 'preset': '1', 'sharpen': '1', 'sharpness': '
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '0',
                 'render_resolution': 'native', 'engine_fps': '60', 'fps_default_60': '1', 'fsr1': '0', 'rcas': '1',
-                'rcas_strength': '75', 'frames_queued': '1', 'ue4_quality': 'console', 'cheat_very_hard': '0', 'cheat_double_jumps': '0', 'cheat_menu': '0', 'cheat_infinite_ammo': '0', 'ue4_upscale': 'off', 'ue4_aa': 'taa'}
+                'rcas_strength': '75', 'frames_queued': '1', 'ue4_quality': 'console', 'cheat_very_hard': '0', 'cheat_double_jumps': '0', 'cheat_menu': '0', 'cheat_infinite_ammo': '0', 'ue4_upscale': 'off', 'ue4_aa': 'taa', 'shadow_test': 'off'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',)),
               ('-1', ('Half display refresh (smoothest)',))]
@@ -444,6 +444,11 @@ AA_CHOICES = [('taa', ('Temporal (default, smooth)',)), ('fxaa', ('FXAA (sharper
               ('off', ('Off (sharpest, jagged edges)',))]
 QUALITY_CHOICES = [('ultra', ('Ultra',)), ('high', ('High',)), ('console', ('Console (PS4)',)),
                    ('medium', ('Medium',)), ('low', ('Low (integrated graphics)',))]
+SHADOW_TEST_CHOICES = [('off', ('Off (normal shadows)',)), ('noshadows', ('No shadows at all',)),
+                       ('nocache', ('Redraw cached shadows every frame',)),
+                       ('nopoint', ('No torch / fire (point light) shadows',)),
+                       ('onecascade', ('Sun / moon: one shadow cascade',)),
+                       ('morebias', ('Stronger shadow bias (against shadow acne)',))]
 ENGINE_FPS_CHOICES = [('60', ('60 (original, recommended)',)), ('120', ('120 (experimental)',)),
                       ('240', ('240 (experimental)',))]
 
@@ -1417,6 +1422,11 @@ class Launcher:
         ttk.Label(holder, text=_('If the game only shows a black screen, this usually helps.',
                                  'Если игра показывает только чёрный экран, обычно это помогает.'),
                   style='Muted.TLabel').pack(side='left', padx=10)
+        # Shadow flicker test: one shadow change per start, to find what flickers on this GPU.
+        self.section(f, _('Shadow flicker test'))
+        self.row(f, _('Test'), self.choice(f, 'shadow_test', 'ini', SHADOW_TEST_CHOICES),
+                 _('If shadows flicker, try one at a time and note which one stops it. Set back to Off '
+                   'afterwards. Applied at start.'))
         # Diagnostics: for development, folded away until asked for.
         toggle = ttk.Label(f, text='', style='Section.TLabel', cursor='hand2')
         toggle.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(22, 2))
