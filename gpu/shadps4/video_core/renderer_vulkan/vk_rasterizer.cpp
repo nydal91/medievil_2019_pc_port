@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <array>
+#include <mutex>
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
 #include "gow3_toggles.h"
@@ -3434,7 +3437,64 @@ void Rasterizer::UpdateDepthStencilState() const {
         // precision (Z16+S8 has no PC equivalent and becomes D32S8, about 2^-24 per unit), the
         // same number was ~256 times too small: shadow acne, shadows flickering while moving.
         float constant_scale = 1.0f;
-        if (const auto db_fmt = regs.poly_offset_db_fmt; !db_fmt.IsFloat() && db_fmt.NumDbBits() > 0) {
+        const auto db_fmt = regs.poly_offset_db_fmt;
+        // gow3: with VK_EXT_depth_bias_control the offset goes in as an absolute depth: N units
+        // of an n-bit fixed-point format are N * 2^-n, whatever format the host buffer has.
+        const bool absolute = instance.IsDepthBiasControlSupported() && !db_fmt.IsFloat() &&
+                              db_fmt.NumDbBits() > 0;
+        // gow3: one line per distinct depth/bias format pair (flicker reports): what the game asks
+        // for and the host format it got. No lock on the draw path: each thread remembers the
+        // pairs it has seen, and only a pair new to the thread takes the mutex (a few times per
+        // session); after 16 reports the check is one relaxed atomic load.
+        {
+            static constexpr size_t MaxReports = 16;
+            static std::atomic<bool> reports_full{false};
+            if (!reports_full.load(std::memory_order_relaxed)) {
+                const u64 key = (u64(regs.depth_buffer.z_info.format) << 40) |
+                                (u64(regs.depth_buffer.stencil_info.format) << 32) |
+                                (u64(db_fmt.IsFloat()) << 8) | u64(db_fmt.NumDbBits() & 0xff);
+                thread_local std::array<u64, MaxReports> seen{};
+                thread_local size_t seen_count = 0;
+                const auto seen_end = seen.begin() + seen_count;
+                if (std::find(seen.begin(), seen_end, key) == seen_end && seen_count < MaxReports) {
+                    seen[seen_count++] = key;
+                    static std::mutex report_mutex;
+                    static std::vector<u64> reported_formats;
+                    std::scoped_lock lock{report_mutex};
+                    if (reported_formats.size() < MaxReports &&
+                        std::find(reported_formats.begin(), reported_formats.end(), key) ==
+                            reported_formats.end()) {
+                        reported_formats.push_back(key);
+                        if (reported_formats.size() == MaxReports) {
+                            reports_full.store(true, std::memory_order_relaxed);
+                        }
+                        const auto host = instance.GetSupportedFormat(
+                            LiverpoolToVK::DepthFormat(regs.depth_buffer.z_info.format,
+                                                       regs.depth_buffer.stencil_info.format),
+                            vk::FormatFeatureFlagBits2::eDepthStencilAttachment);
+                        std::printf("GPU: depth bias draw: z format %u, stencil %u -> host %s; bias units "
+                                    "%s %d-bit; constant %g, slope %g, clamp %g; %s\n",
+                                    u32(regs.depth_buffer.z_info.format),
+                                    u32(regs.depth_buffer.stencil_info.format), vk::to_string(host).c_str(),
+                                    db_fmt.IsFloat() ? "float" : "fixed", int(db_fmt.NumDbBits()),
+                                    front ? regs.poly_offset.front_offset : regs.poly_offset.back_offset,
+                                    (front ? regs.poly_offset.front_scale : regs.poly_offset.back_scale) /
+                                        16.f,
+                                    regs.poly_offset.depth_bias, absolute ? "absolute" : "host units");
+                        std::fflush(stdout);
+                    }
+                }
+            }
+        }
+        if (absolute) {
+            constant_scale = std::ldexp(1.0f, -s32(db_fmt.NumDbBits()));
+            static std::atomic<bool> reported_absolute{false};
+            if (!reported_absolute.exchange(true)) {
+                std::printf("GPU: depth bias in %d-bit units as absolute depth (depth_bias_control)\n",
+                            db_fmt.NumDbBits());
+                std::fflush(stdout);
+            }
+        } else if (!db_fmt.IsFloat() && db_fmt.NumDbBits() > 0) {
             static thread_local u32 cached_key = ~0u;
             static thread_local s32 cached_host_bits = 0;
             const u32 key = (u32(regs.depth_buffer.z_info.format) << 8) |
@@ -3473,7 +3533,8 @@ void Rasterizer::UpdateDepthStencilState() const {
         dynamic_state.SetDepthBias(
             (front ? regs.poly_offset.front_offset : regs.poly_offset.back_offset) * constant_scale,
             regs.poly_offset.depth_bias,
-            (front ? regs.poly_offset.front_scale : regs.poly_offset.back_scale) / 16.f);
+            (front ? regs.poly_offset.front_scale : regs.poly_offset.back_scale) / 16.f, absolute,
+            absolute && instance.IsDepthBiasExactSupported());
     }
 
     const bool stencil_test_enabled = depth_stencil.stencil_test_enable;

@@ -157,6 +157,14 @@ public:
         return shader_stencil_export;
     }
 
+    /// gow3: true when VK_EXT_depth_bias_control (float representation) is enabled
+    bool IsDepthBiasControlSupported() const {
+        return depth_bias_control;
+    }
+    bool IsDepthBiasExactSupported() const {
+        return depth_bias_exact;
+    }
+
     /// Returns true when VK_EXT_depth_clip_control is supported
     bool IsDepthClipControlSupported() const {
         return depth_clip_control;
@@ -550,6 +558,8 @@ private:
     bool fragment_shader_barycentric{};
     bool amd_shader_explicit_vertex_parameter{};
     bool depth_clip_control{};
+    bool depth_bias_control{};
+    bool depth_bias_exact{};
     bool depth_clip_enable{};
     bool dynamic_state_3{};
     bool depth_range_unrestricted{};

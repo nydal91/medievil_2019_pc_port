@@ -154,6 +154,10 @@ struct DynamicState {
     float depth_bias_constant{};
     float depth_bias_clamp{};
     float depth_bias_slope{};
+    // gow3: the constant is an absolute depth offset (VK_EXT_depth_bias_control, float
+    // representation) instead of a multiple of the host depth format's smallest step.
+    bool depth_bias_absolute{};
+    bool depth_bias_exact{};
 
     bool stencil_test_enabled{};
     StencilOps stencil_front_ops{};
@@ -229,8 +233,24 @@ struct DynamicState {
         }
         if (depth_bias_enabled && dirty_state.depth_bias) {
             dirty_state.depth_bias = false;
-            emit([k = depth_bias_constant, clamp = depth_bias_clamp,
-                  slope = depth_bias_slope](vk::CommandBuffer c) { c.setDepthBias(k, clamp, slope); });
+            if (depth_bias_absolute) {
+                emit([k = depth_bias_constant, clamp = depth_bias_clamp, slope = depth_bias_slope,
+                      exact = depth_bias_exact](vk::CommandBuffer c) {
+                    const vk::DepthBiasRepresentationInfoEXT representation{
+                        .depthBiasRepresentation = vk::DepthBiasRepresentationEXT::eFloat,
+                        .depthBiasExact = exact,
+                    };
+                    c.setDepthBias2EXT(vk::DepthBiasInfoEXT{
+                        .pNext = &representation,
+                        .depthBiasConstantFactor = k,
+                        .depthBiasClamp = clamp,
+                        .depthBiasSlopeFactor = slope,
+                    });
+                });
+            } else {
+                emit([k = depth_bias_constant, clamp = depth_bias_clamp,
+                      slope = depth_bias_slope](vk::CommandBuffer c) { c.setDepthBias(k, clamp, slope); });
+            }
         }
         if (dirty_state.stencil_test_enabled) {
             dirty_state.stencil_test_enabled = false;
@@ -457,12 +477,16 @@ struct DynamicState {
         }
     }
 
-    void SetDepthBias(const float constant, const float clamp, const float slope) {
+    void SetDepthBias(const float constant, const float clamp, const float slope,
+                      const bool absolute = false, const bool exact = false) {
         if (depth_bias_constant != constant || depth_bias_clamp != clamp ||
-            depth_bias_slope != slope) {
+            depth_bias_slope != slope || depth_bias_absolute != absolute ||
+            depth_bias_exact != exact) {
             depth_bias_constant = constant;
             depth_bias_clamp = clamp;
             depth_bias_slope = slope;
+            depth_bias_absolute = absolute;
+            depth_bias_exact = exact;
             dirty_state.depth_bias = true;
         }
     }

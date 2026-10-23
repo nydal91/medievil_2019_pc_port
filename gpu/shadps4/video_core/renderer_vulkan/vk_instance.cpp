@@ -275,7 +275,8 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceComputeShaderDerivativesFeaturesKHR,
         vk::PhysicalDeviceShaderMixedFloatDotProductFeaturesVALVE,
         vk::PhysicalDevicePipelineBinaryFeaturesKHR,
-        vk::PhysicalDeviceMaintenance5FeaturesKHR>();
+        vk::PhysicalDeviceMaintenance5FeaturesKHR,
+        vk::PhysicalDeviceDepthBiasControlFeaturesEXT>();
     features = feature_chain.get().features;
 
     const vk::StructureChain properties_chain = physical_device.getProperties2<
@@ -357,6 +358,23 @@ bool Instance::CreateDevice() {
     }
     custom_border_color = add_extension(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
     depth_clip_control = add_extension(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
+    // gow3: exact depth bias values. The PS4's Z16+S8 shadow maps become D32 float + S8 on GPUs
+    // without D24S8 (AMD): a float format's bias step depends on the depth, so the game's
+    // fixed-point bias came out too small for shadow-map depths (shadow acne and flicker).
+    // GOW3_DEPTH_BIAS_CONTROL=0 turns it off.
+    {
+        const char* env = std::getenv("GOW3_DEPTH_BIAS_CONTROL");
+        const bool wanted = !(env && env[0] == '0');
+        const auto bias_features = feature_chain.get<vk::PhysicalDeviceDepthBiasControlFeaturesEXT>();
+        if (wanted && bias_features.depthBiasControl && bias_features.floatRepresentation) {
+            depth_bias_control = add_extension(VK_EXT_DEPTH_BIAS_CONTROL_EXTENSION_NAME);
+            depth_bias_exact = depth_bias_control && bias_features.depthBiasExact;
+        }
+        std::printf("GPU: VK_EXT_depth_bias_control %s%s\n",
+                    depth_bias_control ? "on" : (wanted ? "unavailable" : "off"),
+                    depth_bias_exact ? " (exact)" : "");
+        std::fflush(stdout);
+    }
     depth_clip_enable = add_extension(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
     vertex_input_dynamic_state = add_extension(VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
     list_restart = add_extension(VK_EXT_PRIMITIVE_TOPOLOGY_LIST_RESTART_EXTENSION_NAME);
@@ -563,6 +581,11 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceDepthClipControlFeaturesEXT{
             .depthClipControl = true,
         },
+        vk::PhysicalDeviceDepthBiasControlFeaturesEXT{
+            .depthBiasControl = true,
+            .floatRepresentation = true,
+            .depthBiasExact = depth_bias_exact,
+        },
         vk::PhysicalDeviceDepthClipEnableFeaturesEXT{
             .depthClipEnable = true,
         },
@@ -647,6 +670,9 @@ bool Instance::CreateDevice() {
     }
     if (!depth_clip_control) {
         device_chain.unlink<vk::PhysicalDeviceDepthClipControlFeaturesEXT>();
+    }
+    if (!depth_bias_control) {
+        device_chain.unlink<vk::PhysicalDeviceDepthBiasControlFeaturesEXT>();
     }
     if (!depth_clip_enable) {
         device_chain.unlink<vk::PhysicalDeviceDepthClipEnableFeaturesEXT>();
